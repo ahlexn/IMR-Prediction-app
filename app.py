@@ -6,7 +6,7 @@ import pandas as pd
 import time
 
 # ----------------------------------------------------------------
-# 1. MODEL ARCHITECTURE & LOADING
+# 1. MODEL ARCHITECTURE (Required for Object Reconstruction)
 # ----------------------------------------------------------------
 class PresentationANN(nn.Module):
     def __init__(self, input_dim=14):
@@ -25,115 +25,123 @@ class PresentationANN(nn.Module):
 
 @st.cache_resource
 def load_model():
+    # Path reconciled with your GitHub folder structure
     path = 'deployment_startup/deployment_model.pth'
     try:
+        # Loading as a full object per your previous serialization fix
         model = torch.load(path, map_location=torch.device('cpu'), weights_only=False)
         model.eval()
         return model
     except Exception as e:
-        st.error(f"⚠️ Model Load Error: {e}")
+        st.error(f"⚠️ Deployment Error: Could not locate model at {path}. Error: {e}")
         return None
 
 # ----------------------------------------------------------------
-# 2. PAGE CONFIG
+# 2. UI CONFIG & STYLING
 # ----------------------------------------------------------------
 st.set_page_config(page_title="Executive IMR Dashboard", page_icon="📈", layout="wide")
 
 st.markdown("""
     <style>
-    .main { background-color: #f8f9fa; }
-    div[data-testid="stMetricValue"] { font-size: 40px; color: #007bff; font-weight: bold; }
-    .stButton>button { border-radius: 8px; height: 3em; background-color: #007bff; color: white; font-weight: bold; }
+    .main { background-color: #fcfcfc; }
+    div[data-testid="stMetricValue"] { font-size: 48px; color: #007bff; font-weight: bold; }
+    .stButton>button { width: 100%; border-radius: 8px; height: 3.5em; background-color: #007bff; color: white; font-weight: bold; }
+    .readout { font-family: 'monospace'; font-weight: bold; color: #007bff; font-size: 1.2em; text-align: center; padding-top: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("🛡️ District Health Decision Support System")
-st.markdown("##### Infant Mortality Rate (IMR) Analytics for India's EAG States")
+st.markdown("##### Infant Mortality Rate (IMR) Strategic Forecasting | India's EAG States")
 
 # ----------------------------------------------------------------
-# 3. TOP ROW: INFERENCE ACTION (Visibility Priority)
+# 3. TOP ACTION BAR (The "Hero" Section)
 # ----------------------------------------------------------------
 st.divider()
 model = load_model()
 
-# We define the names early to use in multiple places
+# Header Row for immediate feedback
+top_col1, top_col2, top_col3 = st.columns([1, 1, 2])
+
+with top_col1:
+    st.write("### 🚀 Step 1")
+    run_btn = st.button("RUN NEURAL FORECAST")
+
+with top_col2:
+    st.write("### 📊 Step 2: Prediction")
+    res_placeholder = st.empty() # Filled after inference
+
+with top_col3:
+    st.write("### 🚨 Step 3: Status")
+    status_placeholder = st.empty() # Filled after inference
+
+st.divider()
+
+# ----------------------------------------------------------------
+# 4. THE ROW-BASED INPUT GRID
+# ----------------------------------------------------------------
+# PCA names for the model tensor
 pc_names = [
     'Death_Rate', 'Population_And_Marriage', 'Vaccination', 'Population_Urban', 
     'Delivery', 'Foods', 'Death_Rate_Urban', 'Neo_Natal_Mortality', 'Birth_rate', 'Check_Up',
     'Government_Assist', 'BCG_No_Vaccination', 'Illiteracy', 'State'
 ]
 
-# Create a clean row for the button and the results right at the top
-inf_col1, inf_col2, inf_col3 = st.columns([1, 1, 2])
+col_sliders, col_chart = st.columns([1.5, 1], gap="large")
 
-with inf_col1:
-    st.write("### 1. Execute")
-    run_btn = st.button("🚀 RUN FORECAST", use_container_width=True)
-
-with inf_col2:
-    st.write("### 2. Prediction")
-    # Placeholder for prediction value
-    prediction_placeholder = st.empty()
-
-with inf_col3:
-    st.write("### 3. Strategic Status")
-    status_placeholder = st.empty()
-
-st.divider()
-
-# ----------------------------------------------------------------
-# 4. DATA ROW: COMPACT INPUTS & CHART
-# ----------------------------------------------------------------
-col_sliders, col_chart = st.columns([1.2, 1], gap="medium")
-
-inputs = {} # Store in dict for easy retrieval
+final_values = []
 
 with col_sliders:
-    st.subheader("📍 Input Profile")
-    # We split the 14 sliders into 2 columns to save vertical space
-    sub_col1, sub_col2 = st.columns(2)
+    st.subheader("📍 Input Profile (Z-Scores)")
+    st.info("Defaults set to 0.0 (Regional Mean). Adjust rows to simulate district variance.")
     
-    for i, name in enumerate(pc_names):
-        # Determine which sub-column to place the slider in
-        target_col = sub_col1 if i < 7 else sub_col2
+    # Building the Row-Based architecture
+    for name in pc_names:
+        label = name.replace('_', ' ')
+        row_col1, row_col2 = st.columns([4, 1])
         
-        with target_col:
-            label = name.replace('_', ' ')
-            # Shortened labels for the grid view
-            inputs[name] = st.slider(label, -5.0, 5.0, 0.0, key=f"inp_{name}")
+        with row_col1:
+            # All defaults now set to 0.0
+            val = st.slider(label, -5.0, 5.0, 0.0, key=f"sl_{name}")
+            final_values.append(val)
+        
+        with row_col2:
+            # Digital readout for professional aesthetic
+            st.markdown(f"<p class='readout'>{val:.2f}</p>", unsafe_allow_html=True)
 
 with col_chart:
-    st.subheader("📊 Visual Variance")
-    # Match height to the now-shorter slider grid
-    chart_data = pd.DataFrame({"Factor": pc_names, "Strength": [inputs[n] for n in pc_names]})
-    st.bar_chart(chart_data.set_index("Factor"), height=380)
+    st.subheader("📊 Feature Variance Chart")
+    st.markdown("Visual mapping of the selected profile across the 14 clusters.")
+    
+    # Sync chart with the live slider values
+    chart_df = pd.DataFrame({"Factor": pc_names, "Strength": final_values})
+    st.bar_chart(chart_df.set_index("Factor"), height=750)
 
 # ----------------------------------------------------------------
-# 5. TRIGGER PREDICTION
+# 5. INFERENCE EXECUTION
 # ----------------------------------------------------------------
 if run_btn and model:
-    input_list = [inputs[n] for n in pc_names]
-    input_tensor = torch.tensor([input_list], dtype=torch.float32)
+    input_tensor = torch.tensor([final_values], dtype=torch.float32)
     
-    with st.spinner('Analyzing...'):
+    with st.spinner('Neural Network Inference in progress...'):
         with torch.no_grad():
             prediction = model(input_tensor).item()
-        time.sleep(0.3)
+        time.sleep(0.4) # UX polish to show "work" being done
     
-    # Update the placeholders at the top
-    prediction_placeholder.metric(label="Predicted IMR", value=f"{prediction:.2f}")
+    # Update the Top Hero Row
+    res_placeholder.metric(label="Predicted IMR", value=f"{prediction:.2f}")
     
     if prediction > 50:
-        status_placeholder.error("**CRITICAL RISK**\n\nImmediate neonatal intervention required.")
+        status_placeholder.error("**CRITICAL RISK**\n\nImmediate Priority: Neonatal intervention & specialized care.")
     elif prediction > 35:
-        status_placeholder.warning("**ELEVATED RISK**\n\nHigh-intensity support recommended.")
+        status_placeholder.warning("**ELEVATED RISK**\n\nPriority: Enhance immunization & institutional delivery access.")
     else:
-        status_placeholder.success("**STABLE BASELINE**\n\nStandard maintenance levels.")
+        status_placeholder.success("**STABLE BASELINE**\n\nDistrict is performing within expected average parameters.")
 
 # ----------------------------------------------------------------
-# 6. FOOTER
+# 6. DOCUMENTATION & LIMITATIONS
 # ----------------------------------------------------------------
 st.divider()
-with st.expander("🛠️ Methodology & Strategic Limitations"):
-    st.write("**Architecture:** 4-Layer MLP | **Feature Engineering:** 14-Cluster PCA Transformation")
-    st.warning("This model is calibrated for India's 9 EAG states. Predictions for developed urban centers outside of these states may be inaccurate.")
+with st.expander("🛠️ Methodology & Limitations"):
+    st.write("**Architecture:** 4-Layer Multi-Layer Perceptron ($ANN$)")
+    st.write("**Data Pipeline:** Robust Scaler → 14-Cluster Principal Component Analysis ($PCA$)")
+    st.warning("This tool is calibrated for the 9 EAG states of India. Applying this model to highly developed urban centers outside of these states may result in out-of-distribution inaccuracies.")
