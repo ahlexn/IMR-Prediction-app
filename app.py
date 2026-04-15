@@ -2,9 +2,10 @@ import streamlit as st
 import torch
 import torch.nn as nn
 import numpy as np
-import pickle
+import pandas as pd
+import time
 
-# 1. Define the Architecture (Must match your Slide 13 exactly)
+# 1. Define the Architecture (Required for PyTorch to reconstruct the object)
 class PresentationANN(nn.Module):
     def __init__(self, input_dim=14):
         super().__init__()
@@ -20,60 +21,88 @@ class PresentationANN(nn.Module):
     def forward(self, x):
         return self.net(x)
 
-# 2. Load the Model
+# 2. Load the Model (Using your specific directory and object-loading fix)
 @st.cache_resource
 def load_model():
-    model = PresentationANN(input_dim=14)
-    # Ensure you have saved your model weights as 'deployment_model.pth'
     path = 'deployment_startup/deployment_model.pth'
-    
-    # Load the full object
     model = torch.load(path, map_location=torch.device('cpu'), weights_only=False)
-    
-    # Set to evaluation mode
     model.eval()
     return model
-# 3. App UI
-st.set_page_config(page_title="IMR Predictor", page_icon="👶")
-st.title("District-Level Infant Mortality Predictor")
+
+# 3. Page Configuration
+st.set_page_config(page_title="Executive IMR Dashboard", page_icon="📈", layout="wide")
+
+# Custom CSS for a professional look
 st.markdown("""
-This tool uses a **Custom Artificial Neural Network** to predict Infant Mortality Rates (IMR) 
-in India's EAG states based on 14 Principal Component inputs.
-""")
+    <style>
+    .main { background-color: #f8f9fa; }
+    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    </style>
+    """, unsafe_allow_code=True)
 
-st.sidebar.header("Input Health Metrics (PCA Values)")
+st.title("🛡️ District Health Decision Support System")
+st.markdown("---")
 
-# Generate 14 sliders for the user to input the PCA values
-# We use sliders because PCA components are usually centered around 0
-inputs = []
+# 4. Sidebar Inputs (Organized for Operational Readiness)
+st.sidebar.header("📍 District Parameters")
+st.sidebar.info("Adjust the PCA components below to simulate regional health profiles.")
+
 pc_names = [
-    'Death_Rate','Population_Marriage','Vaccination','Population_Urban',
-    'Delivery','Foods','Death_Rate_Urban','Neo_Natal_Mortality','Birth_rate',
-    'Check_Up','Govt_Assist','BCG_Vaccination','Illiteracy', 'State_Encoded'
+    'Death_Rate', 'Population_And_Marriage', 'Vaccination', 'Population_Urban', 
+    'Delivery', 'Foods', 'Death_Rate_Urban', 'Neo_Natal_Mortality', 'Birth_rate', 'Check_Up',
+    'Government_Assist', 'BCG_No_Vaccination', 'Illiteracy', 'State'
 ]
 
-for name in pc_names:
-    val = st.sidebar.slider(f"Component: {name}", -5.0, 5.0, 0.0)
-    inputs.append(val)
+inputs = []
+with st.sidebar:
+    for name in pc_names:
+        val = st.slider(f"{name.replace('_', ' ')}", -5.0, 5.0, 0.0, help=f"Adjusted factor for {name}")
+        inputs.append(val)
 
-# 4. Prediction Logic
+# 5. Main Area - Results & Metrics
 model = load_model()
 
-if st.button("Predict Infant Mortality Rate"):
-    input_tensor = torch.tensor([inputs], dtype=torch.float32)
-    with torch.no_grad():
-        prediction = model(input_tensor).item()
-    
-    st.subheader(f"Predicted IMR: {prediction:.2f}")
-    st.write("Deaths per 1,000 live births.")
-    
-    # Interpretation Guidance
-    if prediction > 50:
-        st.error("⚠️ Warning: This district is predicted to have a Critical IMR level.")
-    elif prediction > 35:
-        st.warning("ℹ️ Notice: This district is predicted to have an Elevated IMR level.")
-    else:
-        st.success("✅ Stable: This district is predicted to have a standard IMR for EAG states.")
+# Use columns to separate the prediction from the interpretation
+main_col, side_col = st.columns([2, 1])
 
-st.divider()
-st.info("**Limitations & Warnings:** This model is designed for districts in EAG states. Predictions for developed urban centers outside of these states may be inaccurate. PCA inputs must be pre-calculated based on original scaling.")
+with main_col:
+    st.subheader("Predictive Analytics")
+    if st.button("Generate Strategic Forecast", use_container_width=True):
+        with st.spinner('Running PCA Transform and ANN Inference...'):
+            input_tensor = torch.tensor([inputs], dtype=torch.float32)
+            with torch.no_grad():
+                prediction = model(input_tensor).item()
+            time.sleep(0.5) # UX Pause
+        
+        # Display the "Hero" Number
+        st.metric(label="Predicted Infant Mortality Rate", value=f"{prediction:.2f}")
+        st.caption("Units: Deaths per 1,000 live births.")
+        
+        # Visual Status
+        if prediction > 50:
+            st.error(f"**Critical Level Identified:** This district requires immediate neonatal intervention.")
+        elif prediction > 35:
+            st.warning(f"**Elevated Risk:** Targeted vaccination and delivery assistance recommended.")
+        else:
+            st.success(f"**Stable Baseline:** District is performing within standard EAG state expectations.")
+
+with side_col:
+    st.subheader("Model Insights")
+    st.write("Current analysis profile:")
+    # Show a small bar chart of the inputs for visual feedback
+    input_df = pd.DataFrame({"Component": pc_names, "Value": inputs})
+    st.bar_chart(input_df.set_index("Component"))
+
+# 6. Technical Transparency (Expanders)
+st.markdown("---")
+with st.expander("🛠️ View Deployment Backbone"):
+    st.write("This deployment utilizes a custom **Artificial Neural Network** ($ANN$) trained on India's EAG states data.")
+    st.code("""
+    Architecture: 4-Layer MLP
+    Input: 14 Principal Components
+    Scaling: Robust Scaler
+    Encoding: Target Encoder
+    """)
+
+with st.expander("⚠️ Strategic Limitations"):
+    st.warning("This tool is designed for macro-level resource allocation. It is calibrated specifically for the demographics of the 9 EAG states and should not be used for clinical diagnosis or urban centers outside the training domain.")centers outside of these states may be inaccurate. PCA inputs must be pre-calculated based on original scaling.")
