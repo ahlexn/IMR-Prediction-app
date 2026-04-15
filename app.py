@@ -6,7 +6,7 @@ import pandas as pd
 import time
 
 # ----------------------------------------------------------------
-# 1. MODEL ARCHITECTURE
+# 1. MODEL ARCHITECTURE & LOADING
 # ----------------------------------------------------------------
 class PresentationANN(nn.Module):
     def __init__(self, input_dim=14):
@@ -23,9 +23,6 @@ class PresentationANN(nn.Module):
     def forward(self, x):
         return self.net(x)
 
-# ----------------------------------------------------------------
-# 2. MODEL LOADING (Object-loading logic)
-# ----------------------------------------------------------------
 @st.cache_resource
 def load_model():
     path = 'deployment_startup/deployment_model.pth'
@@ -34,101 +31,109 @@ def load_model():
         model.eval()
         return model
     except Exception as e:
-        st.error(f"⚠️ Error loading model file: {e}")
+        st.error(f"⚠️ Model Load Error: {e}")
         return None
 
 # ----------------------------------------------------------------
-# 3. PAGE CONFIG & STYLING
+# 2. PAGE CONFIG
 # ----------------------------------------------------------------
 st.set_page_config(page_title="Executive IMR Dashboard", page_icon="📈", layout="wide")
 
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
-    div[data-testid="stMetricValue"] { font-size: 50px; color: #007bff; }
-    .stButton>button { width: 100%; border-radius: 8px; height: 3.5em; background-color: #007bff; color: white; font-weight: bold; }
+    div[data-testid="stMetricValue"] { font-size: 40px; color: #007bff; font-weight: bold; }
+    .stButton>button { border-radius: 8px; height: 3em; background-color: #007bff; color: white; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("🛡️ District Health Decision Support System")
-st.markdown("##### Infant Mortality Rate (IMR) Strategic Forecasting for EAG States")
-st.divider()
+st.markdown("##### Infant Mortality Rate (IMR) Analytics for India's EAG States")
 
 # ----------------------------------------------------------------
-# 4. DATA SYNCHRONIZATION: COLUMNS VS SIDEBAR
+# 3. TOP ROW: INFERENCE ACTION (Visibility Priority)
 # ----------------------------------------------------------------
+st.divider()
+model = load_model()
+
+# We define the names early to use in multiple places
 pc_names = [
     'Death_Rate', 'Population_And_Marriage', 'Vaccination', 'Population_Urban', 
     'Delivery', 'Foods', 'Death_Rate_Urban', 'Neo_Natal_Mortality', 'Birth_rate', 'Check_Up',
     'Government_Assist', 'BCG_No_Vaccination', 'Illiteracy', 'State'
 ]
 
-# We create two main columns to replace the sidebar misalignment
-col_input, col_chart = st.columns([1, 1], gap="large")
+# Create a clean row for the button and the results right at the top
+inf_col1, inf_col2, inf_col3 = st.columns([1, 1, 2])
 
-inputs = []
+with inf_col1:
+    st.write("### 1. Execute")
+    run_btn = st.button("🚀 RUN FORECAST", use_container_width=True)
 
-with col_input:
+with inf_col2:
+    st.write("### 2. Prediction")
+    # Placeholder for prediction value
+    prediction_placeholder = st.empty()
+
+with inf_col3:
+    st.write("### 3. Strategic Status")
+    status_placeholder = st.empty()
+
+st.divider()
+
+# ----------------------------------------------------------------
+# 4. DATA ROW: COMPACT INPUTS & CHART
+# ----------------------------------------------------------------
+col_sliders, col_chart = st.columns([1.2, 1], gap="medium")
+
+inputs = {} # Store in dict for easy retrieval
+
+with col_sliders:
     st.subheader("📍 Input Profile")
-    st.info("Adjust the factors below to simulate district conditions.")
+    # We split the 14 sliders into 2 columns to save vertical space
+    sub_col1, sub_col2 = st.columns(2)
     
-    # We display all 14 sliders in the main area for better alignment with the chart
-    for name in pc_names:
-        label = name.replace('_', ' ')
-        # Special help for BCG based on your question
-        help_text = "Bacille Calmette-Guérin (TB Vaccine) Coverage Component" if "BCG" in name else None
+    for i, name in enumerate(pc_names):
+        # Determine which sub-column to place the slider in
+        target_col = sub_col1 if i < 7 else sub_col2
         
-        val = st.slider(label, -5.0, 5.0, 0.0, key=f"main_{name}", help=help_text)
-        inputs.append(val)
+        with target_col:
+            label = name.replace('_', ' ')
+            # Shortened labels for the grid view
+            inputs[name] = st.slider(label, -5.0, 5.0, 0.0, key=f"inp_{name}")
 
 with col_chart:
     st.subheader("📊 Visual Variance")
-    st.markdown("Real-time distribution of influence across the 14 PCA clusters.")
+    # Match height to the now-shorter slider grid
+    chart_data = pd.DataFrame({"Factor": pc_names, "Strength": [inputs[n] for n in pc_names]})
+    st.bar_chart(chart_data.set_index("Factor"), height=380)
+
+# ----------------------------------------------------------------
+# 5. TRIGGER PREDICTION
+# ----------------------------------------------------------------
+if run_btn and model:
+    input_list = [inputs[n] for n in pc_names]
+    input_tensor = torch.tensor([input_list], dtype=torch.float32)
     
-    # We force the chart to have a larger height to match the long list of sliders
-    chart_data = pd.DataFrame({"Factor": pc_names, "Strength": inputs})
-    st.bar_chart(chart_data.set_index("Factor"), height=650) 
+    with st.spinner('Analyzing...'):
+        with torch.no_grad():
+            prediction = model(input_tensor).item()
+        time.sleep(0.3)
+    
+    # Update the placeholders at the top
+    prediction_placeholder.metric(label="Predicted IMR", value=f"{prediction:.2f}")
+    
+    if prediction > 50:
+        status_placeholder.error("**CRITICAL RISK**\n\nImmediate neonatal intervention required.")
+    elif prediction > 35:
+        status_placeholder.warning("**ELEVATED RISK**\n\nHigh-intensity support recommended.")
+    else:
+        status_placeholder.success("**STABLE BASELINE**\n\nStandard maintenance levels.")
 
 # ----------------------------------------------------------------
-# 5. INFERENCE & STRATEGIC ADVISORY
-# ----------------------------------------------------------------
-st.divider()
-model = load_model()
-
-if model:
-    # Action area for the big button and results
-    action_col, result_col = st.columns([1, 2])
-
-    with action_col:
-        st.write("### Ready for Inference?")
-        run_btn = st.button("🚀 RUN NEURAL NETWORK FORECAST")
-
-    with result_col:
-        if run_btn:
-            with st.spinner('Calculating complex regional interactions...'):
-                input_tensor = torch.tensor([inputs], dtype=torch.float32)
-                with torch.no_grad():
-                    prediction = model(input_tensor).item()
-                time.sleep(0.5) # UX polish
-            
-            # Prediction Results
-            res_1, res_2 = st.columns(2)
-            with res_1:
-                st.metric(label="Predicted IMR", value=f"{prediction:.2f}")
-                st.caption("Units: Deaths per 1,000 live births.")
-            
-            with res_2:
-                if prediction > 50:
-                    st.error("**STATUS: CRITICAL**\n\nPriority: Urgent Neonatal Care Intervention.")
-                elif prediction > 35:
-                    st.warning("**STATUS: ELEVATED**\n\nPriority: High-Intensity Vaccination & Delivery Support.")
-                else:
-                    st.success("**STATUS: STABLE**\n\nPriority: Standard District Maintenance.")
-
-# ----------------------------------------------------------------
-# 6. DOCUMENTATION & LIMITATIONS
+# 6. FOOTER
 # ----------------------------------------------------------------
 st.divider()
 with st.expander("🛠️ Methodology & Strategic Limitations"):
     st.write("**Architecture:** 4-Layer MLP | **Feature Engineering:** 14-Cluster PCA Transformation")
-    st.warning("This model is calibrated for India's 9 EAG states. Predictions for developed urban centers outside of these states may be inaccurate due to socioeconomic variance.")
+    st.warning("This model is calibrated for India's 9 EAG states. Predictions for developed urban centers outside of these states may be inaccurate.")
