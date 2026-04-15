@@ -25,10 +25,14 @@ class PresentationANN(nn.Module):
 def load_model():
     model = PresentationANN(input_dim=14)
     # Ensure you have saved your model weights as 'deployment_model.pth'
-    model.load_state_dict(torch.load('deployment_startup/deployment_model.pth', map_location=torch.device('cpu'), weights_only=False))
+    path = 'deployment_startup/deployment_model.pth'
+    
+    # Load the full object
+    model = torch.load(path, map_location=torch.device('cpu'), weights_only=False)
+    
+    # Set to evaluation mode
     model.eval()
     return model
-
 # 3. App UI
 st.set_page_config(page_title="IMR Predictor", page_icon="👶")
 st.title("District-Level Infant Mortality Predictor")
