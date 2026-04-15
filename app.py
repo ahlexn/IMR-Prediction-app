@@ -5,7 +5,9 @@ import numpy as np
 import pandas as pd
 import time
 
-# 1. Define the Architecture (Required for PyTorch to reconstruct the object)
+# ----------------------------------------------------------------
+# 1. MODEL DEFINITION & LOADING
+# ----------------------------------------------------------------
 class PresentationANN(nn.Module):
     def __init__(self, input_dim=14):
         super().__init__()
@@ -21,31 +23,42 @@ class PresentationANN(nn.Module):
     def forward(self, x):
         return self.net(x)
 
-# 2. Load the Model (Using your specific directory and object-loading fix)
 @st.cache_resource
 def load_model():
+    # Points to the folder structure established in your GitHub repo
     path = 'deployment_startup/deployment_model.pth'
-    model = torch.load(path, map_location=torch.device('cpu'), weights_only=False)
-    model.eval()
-    return model
+    try:
+        model = torch.load(path, map_location=torch.device('cpu'), weights_only=False)
+        model.eval()
+        return model
+    except FileNotFoundError:
+        st.error(f"Model file not found at {path}. Please check your GitHub structure.")
+        return None
 
-# 3. Page Configuration
+# ----------------------------------------------------------------
+# 2. PAGE CONFIGURATION & UI STYLING
+# ----------------------------------------------------------------
 st.set_page_config(page_title="Executive IMR Dashboard", page_icon="📈", layout="wide")
 
-# Custom CSS for a professional look
+# Custom CSS for a clean, modern aesthetic
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
-    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    div[data-testid="stMetricValue"] { font-size: 45px; color: #007bff; }
+    .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #007bff; color: white; }
+    .stExpander { background-color: #ffffff; border-radius: 8px; }
     </style>
-    """, unsafe_allow_code=True)
+    """, unsafe_allow_html=True)
 
 st.title("🛡️ District Health Decision Support System")
-st.markdown("---")
+st.markdown("##### Infant Mortality Rate (IMR) Predictive Analytics for EAG States")
+st.divider()
 
-# 4. Sidebar Inputs (Organized for Operational Readiness)
-st.sidebar.header("📍 District Parameters")
-st.sidebar.info("Adjust the PCA components below to simulate regional health profiles.")
+# ----------------------------------------------------------------
+# 3. SIDEBAR: INPUT PARAMETERS (The PCA Components)
+# ----------------------------------------------------------------
+st.sidebar.header("📍 District Health Profile")
+st.sidebar.markdown("Adjust the **Principal Components** below to simulate district conditions.")
 
 pc_names = [
     'Death_Rate', 'Population_And_Marriage', 'Vaccination', 'Population_Urban', 
@@ -54,49 +67,74 @@ pc_names = [
 ]
 
 inputs = []
+# Grouping sliders to avoid a "wall of sliders"
 with st.sidebar:
-    for name in pc_names:
-        val = st.slider(f"{name.replace('_', ' ')}", -5.0, 5.0, 0.0, help=f"Adjusted factor for {name}")
-        inputs.append(val)
+    with st.expander("Vital & Demographics", expanded=True):
+        for name in pc_names[:4]:
+            inputs.append(st.slider(name.replace('_', ' '), -5.0, 5.0, 0.0))
+    
+    with st.expander("Clinical & Nutrition", expanded=False):
+        for name in pc_names[4:9]:
+            inputs.append(st.slider(name.replace('_', ' '), -5.0, 5.0, 0.0))
+            
+    with st.expander("Socio-Economic & State Factors", expanded=False):
+        for name in pc_names[9:]:
+            inputs.append(st.slider(name.replace('_', ' '), -5.0, 5.0, 0.0))
 
-# 5. Main Area - Results & Metrics
+# ----------------------------------------------------------------
+# 4. MAIN DASHBOARD: PREDICTION & VISUALIZATION
+# ----------------------------------------------------------------
 model = load_model()
 
-# Use columns to separate the prediction from the interpretation
-main_col, side_col = st.columns([2, 1])
+if model:
+    # Split layout: Results on the left, Data Visualization on the right
+    col1, col2 = st.columns([2, 1])
 
-with main_col:
-    st.subheader("Predictive Analytics")
-    if st.button("Generate Strategic Forecast", use_container_width=True):
-        with st.spinner('Running PCA Transform and ANN Inference...'):
-            input_tensor = torch.tensor([inputs], dtype=torch.float32)
-            with torch.no_grad():
-                prediction = model(input_tensor).item()
-            time.sleep(0.5) # UX Pause
-        
-        # Display the "Hero" Number
-        st.metric(label="Predicted Infant Mortality Rate", value=f"{prediction:.2f}")
-        st.caption("Units: Deaths per 1,000 live births.")
-        
-        # Visual Status
-        if prediction > 50:
-            st.error(f"**Critical Level Identified:** This district requires immediate neonatal intervention.")
-        elif prediction > 35:
-            st.warning(f"**Elevated Risk:** Targeted vaccination and delivery assistance recommended.")
-        else:
-            st.success(f"**Stable Baseline:** District is performing within standard EAG state expectations.")
+    with col1:
+        st.subheader("Predictive Forecast")
+        if st.button("🚀 Run Neural Network Inference"):
+            with st.spinner('Calculating complex regional interactions...'):
+                input_tensor = torch.tensor([inputs], dtype=torch.float32)
+                with torch.no_grad():
+                    prediction = model(input_tensor).item()
+                time.sleep(0.4) # UX pause for "work" effect
+            
+            # Outcome Metric
+            st.metric(label="Predicted Infant Mortality Rate", value=f"{prediction:.2f}")
+            st.caption("Units: Deaths per 1,000 live births.")
+            
+            # Dynamic Advisory Logic
+            if prediction > 50:
+                st.error("**Action Required:** High mortality risk. Prioritize neonatal critical care resources.")
+            elif prediction > 35:
+                st.warning("**Alert:** Elevated risk. Review vaccination coverage and institutional delivery access.")
+            else:
+                st.success("**Stable:** Projected IMR is within the baseline range for identified EAG districts.")
 
-with side_col:
-    st.subheader("Model Insights")
-    st.write("Current analysis profile:")
-    # Show a small bar chart of the inputs for visual feedback
-    input_df = pd.DataFrame({"Component": pc_names, "Value": inputs})
-    st.bar_chart(input_df.set_index("Component"))
+    with col2:
+        st.subheader("Input Variance")
+        # Visualizing the input PCA components for context
+        chart_data = pd.DataFrame({"Factor": pc_names, "Strength": inputs})
+        st.bar_chart(chart_data.set_index("Factor"))
 
-# 6. Technical Transparency (Expanders)
-st.markdown("""
-    <style>
-    .main { background-color: #f8f9fa; }
-    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    </style>
-    """, unsafe_allow_html=True) # Change made here
+# ----------------------------------------------------------------
+# 5. TECHNICAL DOCUMENTATION (For Executive Defense Q&A)
+# ----------------------------------------------------------------
+st.divider()
+footer_1, footer_2 = st.columns(2)
+
+with footer_1:
+    with st.expander("🛠️ Deployment Methodology"):
+        st.write("""
+        - **Pipeline:** Raw Data → Robust Scaler → 14-Cluster PCA → ANN.
+        - **Architecture:** 4-Layer Multi-Layer Perceptron ($MLP$).
+        - **Operational readiness:** Fully containerized via Streamlit Cloud.
+        """)
+
+with footer_2:
+    with st.expander("⚠️ Strategic Limitations"):
+        st.info("""
+        **User Warning:** This model is calibrated for India's 9 EAG states. 
+        Predictions for highly developed urban centers outside of these states 
+        may be inaccurate due to demographic variance.
+        """)
