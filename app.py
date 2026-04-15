@@ -25,7 +25,7 @@ class PresentationANN(nn.Module):
 def load_model():
     model = PresentationANN(input_dim=14)
     # Ensure you have saved your model weights as 'deployment_model.pth'
-    model.load_state_dict(torch.load('deployment_startup/deployment_model.pth', map_location=torch.device('cpu')))
+   model.load_state_dict(torch.load('deployment_startup/deployment_model.pth', map_location=torch.device('cpu'), weights_only=False))
     model.eval()
     return model
 
