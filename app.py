@@ -6,7 +6,7 @@ import pandas as pd
 import time
 
 # ----------------------------------------------------------------
-# 1. MODEL ARCHITECTURE & LOADING
+# 1. MODEL ARCHITECTURE
 # ----------------------------------------------------------------
 class PresentationANN(nn.Module):
     def __init__(self, input_dim=14):
@@ -25,19 +25,17 @@ class PresentationANN(nn.Module):
 
 @st.cache_resource
 def load_model():
-    # Reconciled with your GitHub 'deployment_startup' folder
     path = 'deployment_startup/deployment_model.pth'
     try:
-        # Loading full object per previous serialization fix
         model = torch.load(path, map_location=torch.device('cpu'), weights_only=False)
         model.eval()
         return model
     except Exception as e:
-        st.error(f"⚠️ Model Load Error: {e}")
+        st.error(f"⚠️ Deployment Error: {e}")
         return None
 
 # ----------------------------------------------------------------
-# 2. PAGE CONFIG & STYLING
+# 2. UI CONFIG & STYLING
 # ----------------------------------------------------------------
 st.set_page_config(page_title="Executive IMR Dashboard", page_icon="📈", layout="wide")
 
@@ -53,18 +51,31 @@ st.title("🛡️ District Health Decision Support System")
 st.markdown("##### Infant Mortality Rate (IMR) Analytics for India's EAG States")
 
 # ----------------------------------------------------------------
-# 3. TOP ROW: INFERENCE ACTION (High Visibility)
+# 3. TOP ROW: INFERENCE ACTION
 # ----------------------------------------------------------------
 st.divider()
 model = load_model()
 
-pc_names = [
+# PCA names for the first 13 HEALTH components
+health_pcs = [
     'Death_Rate', 'Population_And_Marriage', 'Vaccination', 'Population_Urban', 
     'Delivery', 'Foods', 'Death_Rate_Urban', 'Neo_Natal_Mortality', 'Birth_rate', 'Check_Up',
-    'Government_Assist', 'BCG_No_Vaccination', 'Illiteracy', 'State'
+    'Government_Assist', 'BCG_No_Vaccination', 'Illiteracy'
 ]
 
-# Create a clean row for the button and the results at the top
+# State Mapping - REPLACE 0.0 WITH YOUR ACTUAL PCA VALUES
+state_map = {
+    "Bihar": 0.0, 
+    "Chhattisgarh": 0.0, 
+    "Jharkhand": 0.0, 
+    "Madhya Pradesh": 0.0, 
+    "Odisha": 0.0, 
+    "Rajasthan": 0.0, 
+    "Uttar Pradesh": 0.0, 
+    "Uttarakhand": 0.0, 
+    "Assam": 0.0
+}
+
 inf_col1, inf_col2, inf_col3 = st.columns([1, 1, 2])
 
 with inf_col1:
@@ -82,7 +93,7 @@ with inf_col3:
 st.divider()
 
 # ----------------------------------------------------------------
-# 4. DATA ROW: COMPACT INPUTS & CHART
+# 4. DATA ROW: INPUTS & CHART
 # ----------------------------------------------------------------
 col_sliders, col_chart = st.columns([1.2, 1], gap="medium")
 
@@ -90,30 +101,36 @@ inputs = {}
 
 with col_sliders:
     st.subheader("📍 Input Profile")
-    # Grid view: 2 columns of 7 sliders each
     sub_col1, sub_col2 = st.columns(2)
     
-    for i, name in enumerate(pc_names):
+    # Generate sliders for the 13 health metrics
+    for i, name in enumerate(health_pcs):
         target_col = sub_col1 if i < 7 else sub_col2
-        
         with target_col:
             label = name.replace('_', ' ')
-            # Defaulting to 0.0 (The mathematical mean)
             inputs[name] = st.slider(label, -5.0, 5.0, 0.0, key=f"inp_{name}")
+    
+    # The 14th component: Categorical State Selection
+    with sub_col2:
+        st.write("---")
+        selected_state = st.selectbox("Select Target State", options=list(state_map.keys()), help="Sets the baseline geographic variance.")
+        inputs['State_Val'] = state_map[selected_state]
 
 with col_chart:
     st.subheader("📊 Visual Variance")
-    # Create the data for the chart based on slider values
-    chart_data = pd.DataFrame({"Factor": pc_names, "Strength": [inputs[n] for n in pc_names]})
-    # Height adjusted to match the 7-row slider grid
-    st.bar_chart(chart_data.set_index("Factor"), height=400)
+    # Prepare chart labels: 13 health PCs + the selected State name
+    chart_labels = health_pcs + [selected_state]
+    chart_values = [inputs[n] for n in health_pcs] + [inputs['State_Val']]
+    
+    chart_df = pd.DataFrame({"Factor": chart_labels, "Strength": chart_values})
+    st.bar_chart(chart_df.set_index("Factor"), height=415)
 
 # ----------------------------------------------------------------
 # 5. TRIGGER PREDICTION
 # ----------------------------------------------------------------
 if run_btn and model:
-    # Prepare tensor
-    input_list = [inputs[n] for n in pc_names]
+    # Build tensor in the exact order the model expects
+    input_list = [inputs[n] for n in health_pcs] + [inputs['State_Val']]
     input_tensor = torch.tensor([input_list], dtype=torch.float32)
     
     with st.spinner('Analyzing...'):
@@ -121,7 +138,6 @@ if run_btn and model:
             prediction = model(input_tensor).item()
         time.sleep(0.3) 
     
-    # Push results to the Top Row placeholders
     prediction_placeholder.metric(label="Predicted IMR", value=f"{prediction:.2f}")
     
     if prediction > 50:
@@ -132,9 +148,9 @@ if run_btn and model:
         status_placeholder.success("**STABLE BASELINE**\n\nStandard maintenance levels.")
 
 # ----------------------------------------------------------------
-# 6. FOOTER & LIMITATIONS
+# 6. FOOTER
 # ----------------------------------------------------------------
 st.divider()
 with st.expander("🛠️ Methodology & Strategic Limitations"):
     st.write("**Architecture:** 4-Layer MLP | **Feature Engineering:** 14-Cluster PCA Transformation")
-    st.warning("This model is calibrated for India's 9 EAG states. Predictions for developed urban centers outside of these states may be inaccurate.")
+    st.warning("This model is calibrated for India's 9 EAG states[cite: 49]. Predictions for urban centers outside of these states may be inaccurate[cite: 51].")
