@@ -25,8 +25,10 @@ class PresentationANN(nn.Module):
 
 @st.cache_resource
 def load_model():
+    # Reconciled with your GitHub 'deployment_startup' folder
     path = 'deployment_startup/deployment_model.pth'
     try:
+        # Loading full object per previous serialization fix
         model = torch.load(path, map_location=torch.device('cpu'), weights_only=False)
         model.eval()
         return model
@@ -35,7 +37,7 @@ def load_model():
         return None
 
 # ----------------------------------------------------------------
-# 2. PAGE CONFIG
+# 2. PAGE CONFIG & STYLING
 # ----------------------------------------------------------------
 st.set_page_config(page_title="Executive IMR Dashboard", page_icon="📈", layout="wide")
 
@@ -51,19 +53,18 @@ st.title("🛡️ District Health Decision Support System")
 st.markdown("##### Infant Mortality Rate (IMR) Analytics for India's EAG States")
 
 # ----------------------------------------------------------------
-# 3. TOP ROW: INFERENCE ACTION (Visibility Priority)
+# 3. TOP ROW: INFERENCE ACTION (High Visibility)
 # ----------------------------------------------------------------
 st.divider()
 model = load_model()
 
-# We define the names early to use in multiple places
 pc_names = [
     'Death_Rate', 'Population_And_Marriage', 'Vaccination', 'Population_Urban', 
     'Delivery', 'Foods', 'Death_Rate_Urban', 'Neo_Natal_Mortality', 'Birth_rate', 'Check_Up',
     'Government_Assist', 'BCG_No_Vaccination', 'Illiteracy', 'State'
 ]
 
-# Create a clean row for the button and the results right at the top
+# Create a clean row for the button and the results at the top
 inf_col1, inf_col2, inf_col3 = st.columns([1, 1, 2])
 
 with inf_col1:
@@ -72,7 +73,6 @@ with inf_col1:
 
 with inf_col2:
     st.write("### 2. Prediction")
-    # Placeholder for prediction value
     prediction_placeholder = st.empty()
 
 with inf_col3:
@@ -86,41 +86,42 @@ st.divider()
 # ----------------------------------------------------------------
 col_sliders, col_chart = st.columns([1.2, 1], gap="medium")
 
-inputs = {} # Store in dict for easy retrieval
+inputs = {} 
 
 with col_sliders:
     st.subheader("📍 Input Profile")
-    # We split the 14 sliders into 2 columns to save vertical space
+    # Grid view: 2 columns of 7 sliders each
     sub_col1, sub_col2 = st.columns(2)
     
     for i, name in enumerate(pc_names):
-        # Determine which sub-column to place the slider in
         target_col = sub_col1 if i < 7 else sub_col2
         
         with target_col:
             label = name.replace('_', ' ')
-            # Shortened labels for the grid view
+            # Defaulting to 0.0 (The mathematical mean)
             inputs[name] = st.slider(label, -5.0, 5.0, 0.0, key=f"inp_{name}")
 
 with col_chart:
     st.subheader("📊 Visual Variance")
-    # Match height to the now-shorter slider grid
+    # Create the data for the chart based on slider values
     chart_data = pd.DataFrame({"Factor": pc_names, "Strength": [inputs[n] for n in pc_names]})
-    st.bar_chart(chart_data.set_index("Factor"), height=380)
+    # Height adjusted to match the 7-row slider grid
+    st.bar_chart(chart_data.set_index("Factor"), height=400)
 
 # ----------------------------------------------------------------
 # 5. TRIGGER PREDICTION
 # ----------------------------------------------------------------
 if run_btn and model:
+    # Prepare tensor
     input_list = [inputs[n] for n in pc_names]
     input_tensor = torch.tensor([input_list], dtype=torch.float32)
     
     with st.spinner('Analyzing...'):
         with torch.no_grad():
             prediction = model(input_tensor).item()
-        time.sleep(0.3)
+        time.sleep(0.3) 
     
-    # Update the placeholders at the top
+    # Push results to the Top Row placeholders
     prediction_placeholder.metric(label="Predicted IMR", value=f"{prediction:.2f}")
     
     if prediction > 50:
@@ -131,7 +132,7 @@ if run_btn and model:
         status_placeholder.success("**STABLE BASELINE**\n\nStandard maintenance levels.")
 
 # ----------------------------------------------------------------
-# 6. FOOTER
+# 6. FOOTER & LIMITATIONS
 # ----------------------------------------------------------------
 st.divider()
 with st.expander("🛠️ Methodology & Strategic Limitations"):
