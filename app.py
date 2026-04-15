@@ -105,4 +105,4 @@ with st.expander("🛠️ View Deployment Backbone"):
     """)
 
 with st.expander("⚠️ Strategic Limitations"):
-    st.warning("This tool is designed for macro-level resource allocation. It is calibrated specifically for the demographics of the 9 EAG states and should not be used for clinical diagnosis or urban centers outside the training domain.")centers outside of these states may be inaccurate. PCA inputs must be pre-calculated based on original scaling.")
+st.warning("This tool is designed for macro-level resource allocation. It is calibrated specifically for the demographics of the 9 EAG states and should not be used for clinical diagnosis or urban centers outside the training domain.")centers outside of these states may be inaccurate. PCA inputs must be pre-calculated based on original scaling.")
