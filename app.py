@@ -94,15 +94,9 @@ with side_col:
     st.bar_chart(input_df.set_index("Component"))
 
 # 6. Technical Transparency (Expanders)
-st.markdown("---")
-with st.expander("🛠️ View Deployment Backbone"):
-    st.write("This deployment utilizes a custom **Artificial Neural Network** ($ANN$) trained on India's EAG states data.")
-    st.code("""
-    Architecture: 4-Layer MLP
-    Input: 14 Principal Components
-    Scaling: Robust Scaler
-    Encoding: Target Encoder
-    """)
-
-with st.expander("⚠️ Strategic Limitations"):
-    st.warning("This tool is designed for macro-level resource allocation. It is calibrated specifically for the demographics of the 9 EAG states. Predictions for urban centers outside of these states may be inaccurate, and PCA inputs must be pre-calculated based on original scaling.")
+st.markdown("""
+    <style>
+    .main { background-color: #f8f9fa; }
+    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    </style>
+    """, unsafe_allow_html=True) # Change made here
